@@ -8,7 +8,7 @@ import { generateQuestions } from "@/lib/api/client";
 // TODO: 后端API需要补充:
 // - POST /api/test-sessions 创建测试会话
 // - GET /api/documents 获取文档列表
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 function CreateTestContent() {
   const router = useRouter();

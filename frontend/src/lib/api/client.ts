@@ -1,6 +1,17 @@
 /** Python后端API客户端 */
 
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+// 生产环境通过 nginx 反向代理，使用相对路径
+// 开发环境使用 localhost:8000
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    // 浏览器端：生产环境用相对路径，开发环境用 localhost
+    return process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000';
+  }
+  // 服务端渲染：使用环境变量或默认值
+  return process.env.PYTHON_BACKEND_URL || 'http://backend:8000';
+};
+
+const PYTHON_BACKEND_URL = getApiBaseUrl();
 
 export async function callPythonAPI<T>(
   endpoint: string,

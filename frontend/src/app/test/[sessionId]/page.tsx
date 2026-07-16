@@ -7,7 +7,7 @@ import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 // TODO: 后端API需要补充:
 // - GET /api/test-sessions/:id/questions 获取测试题目
 // - PUT /api/test-sessions/:id/submit 提交测试
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 interface Question {
   id: string;

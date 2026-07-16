@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { BarChart3, TrendingUp, Loader2 } from "lucide-react";
 
 // TODO: 后端API GET /api/stats/overview 尚未实现
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 interface Stats {
   totalTests: number;

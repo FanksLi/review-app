@@ -23,7 +23,7 @@ export function DocumentList() {
   const loadDocuments = async () => {
     try {
       // 从Python后端获取文档列表
-      const response = await fetch(`${process.env.PYTHON_BACKEND_URL || 'http://localhost:8000'}/api/documents/`);
+      const response = await fetch('/api/documents/');
       const data = await response.json();
       setDocuments(data.documents || []);
     } catch (error) {

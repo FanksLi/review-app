@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { FileText, Loader2, Calendar, Trash2, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
 import Link from "next/link";
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 interface TestSession {
   id: number;

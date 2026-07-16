@@ -7,7 +7,7 @@ import Link from "next/link";
 
 // TODO: 后端API需要补充:
 // - GET /api/test-sessions/:id/result 获取测试结果
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 interface TestResult {
   total_score: number;

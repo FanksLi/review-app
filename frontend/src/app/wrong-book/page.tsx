@@ -5,7 +5,7 @@ import { BookOpen, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Search, Fi
 import Link from "next/link";
 
 // TODO: 后端API GET /api/stats/wrong-questions 尚未实现
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 interface WrongQuestion {
   question_id: string;
