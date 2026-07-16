@@ -19,14 +19,8 @@ services:
     volumes:
       - ./backend/data:/app/data
       - ./backend/db:/app/db
-    environment:
-      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - CORS_ORIGINS=${CORS_ORIGINS:-}
+    env_file:
+      - ./backend/.env
     restart: unless-stopped
 
   frontend:
