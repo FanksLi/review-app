@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Play, Loader2 } from "lucide-react";
 import { generateQuestions } from "@/lib/api/client";
@@ -10,7 +10,7 @@ import { generateQuestions } from "@/lib/api/client";
 // - GET /api/documents 获取文档列表
 const API_BASE = 'http://localhost:8000';
 
-export default function CreateTestPage() {
+function CreateTestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -75,7 +75,7 @@ export default function CreateTestPage() {
         document_ids: selectedDocs,
         question_types: Object.keys(questionTypes).filter(k => questionTypes[k as keyof typeof questionTypes] > 0),
         counts: questionTypes,
-      });
+      }) as { questions: Array<unknown> };
 
       // 保存题目到测试会话
       await fetch(`${API_BASE}/api/test-sessions/${session_id}/questions`, {
@@ -182,5 +182,17 @@ export default function CreateTestPage() {
         </button>
       </div>
     </main>
+  );
+}
+
+export default function CreateTestPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    }>
+      <CreateTestContent />
+    </Suspense>
   );
 }

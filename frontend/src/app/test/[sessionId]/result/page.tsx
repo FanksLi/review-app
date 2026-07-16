@@ -69,9 +69,9 @@ export default function ResultPage() {
   }
 
   const percentage = (result.total_score / result.total_max_score) * 100;
-  const correctCount = result.questions.filter(q => q.is_correct === true || q.is_correct === 1).length;
+  const correctCount = result.questions.filter(q => q.is_correct === true).length;
   const wrongQuestions = result.questions.filter(
-    q => q.is_correct === false || q.is_correct === 0 || (q.score !== null && q.score < q.max_score * 0.6)
+    q => q.is_correct === false || (q.score !== null && q.score < q.max_score * 0.6)
   );
 
   return (
@@ -108,7 +108,7 @@ export default function ResultPage() {
               const typeQuestions = result.questions.filter(
                 q => q.question_type === type
               );
-              const correct = typeQuestions.filter(q => q.is_correct === true || q.is_correct === 1).length;
+              const correct = typeQuestions.filter(q => q.is_correct === true).length;
               if (typeQuestions.length === 0) return null;
               return (
                 <div key={type} className="text-center p-3 bg-gray-50 rounded-lg">
