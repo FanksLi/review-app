@@ -1,8 +1,10 @@
 """FastAPI主应用"""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from datetime import datetime
+import traceback
 
 from .routers import documents_router, questions_router, tests_router
 from .routers.sessions import router as sessions_router
@@ -75,6 +77,18 @@ async def list_providers():
         ],
         "default": settings.LLM_PROVIDER
     }
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器 - 返回完整错误信息"""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": str(exc),
+            "traceback": traceback.format_exc()
+        }
+    )
 
 
 if __name__ == "__main__":
