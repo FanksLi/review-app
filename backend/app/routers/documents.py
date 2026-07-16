@@ -19,7 +19,7 @@ DB_PATH = Path(__file__).parent.parent.parent / "db" / "review.db"
 
 def get_db():
     """获取数据库连接"""
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 

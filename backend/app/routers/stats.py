@@ -9,7 +9,7 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 DB_PATH = Path(__file__).parent.parent.parent / "db" / "review.db"
 
 def get_db():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
