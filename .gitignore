@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment files - NEVER COMMIT
+.env
+.env.local
+.env.production
+*.env
+
+# Keep example files
+!.env.example
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Database & data files
+*.db
+*.sqlite
+*.sqlite3
+data/
+db/
+*.bin
+*.pkl
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.tar
+
+# Uploads & generated files
+uploads/
+chroma/
