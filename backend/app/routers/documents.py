@@ -82,11 +82,27 @@ async def upload_document(file: UploadFile = File(...)):
 
         # 存入数据库获取真实ID
         conn = get_db()
-        cursor = conn.execute(
-            "INSERT INTO documents (filename, file_type, file_hash, chunk_count) VALUES (?, ?, ?, ?)",
-            (file.filename, file_type, file_hash, len(chunks))
-        )
-        document_id = cursor.lastrowid
+
+        # 检查文件是否已存在
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+
+        if existing:
+            # 文件已存在，更新记录
+            document_id = existing["id"]
+            conn.execute(
+                "UPDATE documents SET filename = ?, file_type = ?, chunk_count = ? WHERE id = ?",
+                (file.filename, file_type, len(chunks), document_id)
+            )
+        else:
+            # 新文件，插入记录
+            cursor = conn.execute(
+                "INSERT INTO documents (filename, file_type, file_hash, chunk_count) VALUES (?, ?, ?, ?)",
+                (file.filename, file_type, file_hash, len(chunks))
+            )
+            document_id = cursor.lastrowid
+
         conn.commit()
         conn.close()
 
