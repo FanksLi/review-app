@@ -1,4 +1,4 @@
-# 阿里云服务器部署指南
+# 阿里云服务器部署指南（Alibaba Cloud Linux 3）
 
 ## 一、服务器准备
 
@@ -9,30 +9,49 @@ ssh root@your_server_ip
 
 ### 1.2 安装 Docker 和 Docker Compose
 ```bash
-# 更新包管理器
-apt update && apt upgrade -y
+# 更新系统
+dnf update -y
 
 # 安装 Docker
-curl -fsSL https://get.docker.com | sh
+dnf install -y dnf-plugins-core
+dnf config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 # 启动 Docker 并设置开机自启
 systemctl start docker
 systemctl enable docker
 
-# 安装 Docker Compose
-apt install docker-compose -y
-
 # 验证安装
 docker --version
-docker-compose --version
+docker compose version
 ```
 
-### 1.3 配置防火墙
+### 1.3 配置 Docker 镜像加速（推荐）
 ```bash
-# 开放必要端口（80、443）
-ufw allow 80
-ufw allow 443
-ufw enable
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json <<EOF
+{
+  "registry-mirrors": [
+    "https://registry.cn-hangzhou.aliyuncs.com",
+    "https://mirror.ccs.tencentyun.com"
+  ]
+}
+EOF
+systemctl daemon-reload
+systemctl restart docker
+```
+
+### 1.4 配置防火墙
+```bash
+# 开放必要端口
+firewall-cmd --permanent --add-port=80/tcp
+firewall-cmd --permanent --add-port=443/tcp
+firewall-cmd --reload
+
+# 或使用 iptables
+iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+service iptables save
 ```
 
 阿里云控制台安全组也要放行：
@@ -46,7 +65,7 @@ ufw enable
 ```bash
 # 在服务器上
 cd /opt
-git clone https://github.com/your-username/review-app.git
+git clone https://github.com/FanksLi/review-app.git
 cd review-app
 ```
 
@@ -94,18 +113,18 @@ CORS_ORIGINS=http://your-domain.com,http://your_server_ip
 ### 4.1 构建镜像
 ```bash
 cd /opt/review-app
-docker-compose build
+docker compose build
 ```
 
 ### 4.2 启动服务
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 4.3 查看状态
 ```bash
-docker-compose ps
-docker-compose logs -f
+docker compose ps
+docker compose logs -f
 ```
 
 ---
@@ -138,10 +157,12 @@ curl http://localhost/api/documents/
 #### 使用 Certbot 自动配置
 ```bash
 # 安装 Certbot
-apt install certbot python3-certbot-nginx -y
+dnf install -y certbot
 
-# 获取证书（nginx 容器需先启动）
-# 先修改 nginx.conf 暴露 80 端口用于验证
+# 获取证书（先停止 nginx 容器）
+docker compose stop nginx
+
+# 获取证书
 certbot certonly --standalone -d your-domain.com
 
 # 证书位置
@@ -149,7 +170,7 @@ certbot certonly --standalone -d your-domain.com
 # /etc/letsencrypt/live/your-domain.com/privkey.pem
 ```
 
-#### 更新 nginx 配置支持 HTTPS
+#### 创建 nginx HTTPS 配置
 创建 `nginx/nginx-ssl.conf`：
 ```nginx
 server {
@@ -204,6 +225,11 @@ nginx:
     - /etc/letsencrypt:/etc/letsencrypt:ro
 ```
 
+#### 重启服务
+```bash
+docker compose up -d
+```
+
 #### 自动续期
 ```bash
 # 测试续期
@@ -212,7 +238,7 @@ certbot renew --dry-run
 # 添加定时任务
 crontab -e
 # 添加以下行
-0 3 * * * certbot renew --quiet && docker-compose -f /opt/review-app/docker-compose.yml restart nginx
+0 3 * * * certbot renew --quiet && docker compose -f /opt/review-app/docker-compose.yml restart nginx
 ```
 
 ---
@@ -221,26 +247,26 @@ crontab -e
 
 ### 查看日志
 ```bash
-docker-compose logs -f nginx
-docker-compose logs -f backend
-docker-compose logs -f frontend
+docker compose logs -f nginx
+docker compose logs -f backend
+docker compose logs -f frontend
 ```
 
 ### 重启服务
 ```bash
-docker-compose restart
+docker compose restart
 ```
 
 ### 停止服务
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ### 更新代码
 ```bash
 git pull
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
 ```
 
 ### 备份数据
@@ -256,21 +282,21 @@ tar -czf backup-$(date +%Y%m%d).tar.gz backend/data backend/db
 ### 8.1 页面空白或 loading
 ```bash
 # 检查容器状态
-docker-compose ps
+docker compose ps
 
 # 检查 nginx 日志
-docker-compose logs nginx
+docker compose logs nginx
 
 # 检查 backend 是否正常
-docker-compose logs backend
+docker compose logs backend
 curl http://localhost/health
 ```
 
 ### 8.2 API 502 Bad Gateway
 ```bash
 # backend 容器可能未启动或崩溃
-docker-compose logs backend
-docker-compose restart backend
+docker compose logs backend
+docker compose restart backend
 ```
 
 ### 8.3 CORS 错误
@@ -281,6 +307,17 @@ docker-compose restart backend
 # 检查文件大小限制
 # nginx.conf 中 client_max_body_size 已设为 20M
 # backend config.py 中 MAX_FILE_SIZE 已设为 20MB
+```
+
+### 8.5 容器无法启动
+```bash
+# 查看详细错误
+docker compose logs 容器名
+
+# 检查端口占用
+netstat -tlnp | grep :80
+netstat -tlnp | grep :3000
+netstat -tlnp | grep :8000
 ```
 
 ---
@@ -319,15 +356,22 @@ location /_next/static/ {
    ```
 
 2. **禁用 root 密码登录**（使用密钥登录）
+   ```bash
+   vim /etc/ssh/sshd_config
+   # PermitRootLogin prohibit-password
+   systemctl restart sshd
+   ```
 
 3. **定期更新系统**
    ```bash
-   apt update && apt upgrade -y
+   dnf update -y
    ```
 
 4. **配置 fail2ban 防暴力破解**
    ```bash
-   apt install fail2ban -y
+   dnf install -y fail2ban
+   systemctl start fail2ban
+   systemctl enable fail2ban
    ```
 
 ---
@@ -339,16 +383,20 @@ location /_next/static/ {
 ssh root@your_server_ip
 
 # 2. 安装 Docker
-curl -fsSL https://get.docker.com | sh && apt install docker-compose -y
+dnf update -y && \
+dnf install -y dnf-plugins-core && \
+dnf config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo && \
+dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin && \
+systemctl start docker && systemctl enable docker
 
 # 3. 克隆代码
-cd /opt && git clone https://github.com/your-username/review-app.git && cd review-app
+cd /opt && git clone https://github.com/FanksLi/review-app.git && cd review-app
 
 # 4. 配置环境变量
 vim .env
 
 # 5. 构建并启动
-docker-compose build && docker-compose up -d
+docker compose build && docker compose up -d
 
 # 6. 验证
 curl http://localhost/health
