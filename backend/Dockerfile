@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 复制依赖文件
 COPY requirements.txt .
 
-# 安装Python依赖（使用阿里云 PyPI 镜像）
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple -r requirements.txt
+# 安装Python依赖（使用清华 PyPI 镜像）
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple --timeout 120 --retries 5 -r requirements.txt
 
 # 复制应用代码
 COPY app ./app
