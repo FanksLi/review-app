@@ -94,7 +94,7 @@ export default function StatsPage() {
 
         {/* 趋势图 */}
         {stats.recentTrend.length > 0 && (
-          <div className="bg-white rounded-lg border p-6">
+          <div className="bg-white rounded-lg border p-6 mb-8">
             <h2 className="font-semibold mb-4">最近成绩趋势</h2>
             <div className="h-48 flex items-end gap-2">
               {stats.recentTrend.map((score, i) => {
