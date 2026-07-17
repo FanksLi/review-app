@@ -82,6 +82,8 @@ async def list_providers():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """全局异常处理器 - 返回完整错误信息"""
+    print(f"Exception: {exc}")
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
         content={

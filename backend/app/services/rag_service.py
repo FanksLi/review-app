@@ -259,27 +259,28 @@ class RAGService:
         # 获取已有题目用于去重
         existing_questions = self._get_existing_questions(document_ids)
 
-        # 检索文档片段 - 随机采样
-        chunks = []
-        per_doc = max(15, sum(counts.values()) * 2)
+        # 从文档的所有片段中全局随机采样
+        self._load_index()
 
+        all_chunks = []
         for doc_id in document_ids:
-            doc_chunks = self.retrieve(
-                query="",  # 空查询获取文档片段
-                document_ids=[doc_id],
-                n_results=per_doc
-            )
-            # 随机打乱顺序
-            random.shuffle(doc_chunks)
-            chunks.extend(doc_chunks)
+            doc_chunks = [
+                {"text": doc["text"], "metadata": doc["metadata"]}
+                for doc in self._documents
+                if doc["metadata"].get("document_id") == doc_id
+            ]
+            all_chunks.extend(doc_chunks)
 
         # 如果没有内容，返回空
-        if not chunks:
+        if not all_chunks:
             return []
+
+        # 全局随机打乱
+        random.shuffle(all_chunks)
 
         # 按页码分组，确保覆盖不同章节
         page_groups = {}
-        for chunk in chunks:
+        for chunk in all_chunks:
             page = chunk['metadata'].get('page', 'unknown')
             source = chunk['metadata'].get('source', 'unknown')
             key = f"{source}-{page}"
@@ -302,7 +303,7 @@ class RAGService:
 
         # 如果采样不足，补充随机片段
         if len(sampled_chunks) < max_chunks:
-            remaining = [c for c in chunks if c not in sampled_chunks]
+            remaining = [c for c in all_chunks if c not in sampled_chunks]
             random.shuffle(remaining)
             sampled_chunks.extend(remaining[:max_chunks - len(sampled_chunks)])
 
