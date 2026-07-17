@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-
-// TODO: 后端API需要补充:
-// - GET /api/test-sessions/:id/questions 获取测试题目
-// - PUT /api/test-sessions/:id/submit 提交测试
-const API_BASE = '';
+import { callPythonAPI } from "@/lib/api/client";
+import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm";
 
 interface Question {
   id: string;
@@ -20,6 +18,7 @@ export default function TestPage() {
   const params = useParams();
   const router = useRouter();
   const sessionId = parseInt(params.sessionId as string);
+  const confirm = useConfirm();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -29,8 +28,7 @@ export default function TestPage() {
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/test-sessions/${sessionId}/questions`);
-        const data = await response.json();
+        const data = await callPythonAPI<{questions: Question[]}>(`/api/test-sessions/${sessionId}/questions`);
         setQuestions(data.questions || []);
       } catch (error) {
         console.error('加载题目失败:', error);
@@ -52,11 +50,18 @@ export default function TestPage() {
     });
 
     if (unanswered.length > 0) {
-      alert(`还有 ${unanswered.length} 道题目未作答，请完成所有题目后提交`);
+      toast.warning(`还有 ${unanswered.length} 道题目未作答，请完成所有题目后提交`);
       return;
     }
 
-    if (!confirm("确定提交测试？")) return;
+    const confirmed = await confirm({
+      title: '提交测试',
+      content: '确定提交测试？提交后不可修改。',
+      confirmText: '提交',
+      cancelText: '继续答题'
+    });
+
+    if (!confirmed) return;
 
     try {
       // 构建答案列表
@@ -66,19 +71,15 @@ export default function TestPage() {
       }));
 
       // 提交答案到后端
-      const response = await fetch(`${API_BASE}/api/test-sessions/${sessionId}/submit`, {
+      await callPythonAPI(`/api/test-sessions/${sessionId}/submit`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers: answerList }),
       });
 
-      if (response.ok) {
-        router.push(`/test/${sessionId}/result`);
-      } else {
-        alert('提交失败');
-      }
+      toast.success('提交成功');
+      router.push(`/test/${sessionId}/result`);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "提交失败");
+      toast.error(error instanceof Error ? error.message : "提交失败");
     }
   };
 

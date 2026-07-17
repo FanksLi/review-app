@@ -4,11 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Play, Loader2 } from "lucide-react";
 import { generateQuestions } from "@/lib/api/client";
-
-// TODO: 后端API需要补充:
-// - POST /api/test-sessions 创建测试会话
-// - GET /api/documents 获取文档列表
-const API_BASE = '';
+import { callPythonAPI } from "@/lib/api/client";
+import { toast } from "sonner";
 
 function CreateTestContent() {
   const router = useRouter();
@@ -27,11 +24,8 @@ function CreateTestContent() {
     // 获取文档列表
     const fetchDocuments = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/documents`);
-        if (response.ok) {
-          const data = await response.json();
-          setDocuments(data.documents || []);
-        }
+        const data = await callPythonAPI<{documents: Array<{id: number; filename: string}>}>('/api/documents');
+        setDocuments(data.documents || []);
       } catch (error) {
         console.error('获取文档列表失败:', error);
         setDocuments([]);
@@ -48,27 +42,26 @@ function CreateTestContent() {
   const handleGenerate = async () => {
     const totalQuestions = Object.values(questionTypes).reduce((a, b) => a + b, 0);
     if (selectedDocs.length === 0) {
-      alert("请选择至少一份文档");
+      toast.warning("请选择至少一份文档");
       return;
     }
     if (totalQuestions === 0) {
-      alert("请设置题目数量");
+      toast.warning("请设置题目数量");
       return;
     }
 
     setLoading(true);
     try {
       // 创建测试会话
-      const sessionResponse = await fetch(`${API_BASE}/api/test-sessions/`, {
+      const sessionData = await callPythonAPI<{session_id: number}>('/api/test-sessions/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           document_ids: selectedDocs,
           question_types: questionTypes,
           provider: 'deepseek',
         }),
       });
-      const { session_id } = await sessionResponse.json();
+      const { session_id } = sessionData;
 
       // 生成题目
       const result = await generateQuestions({
@@ -78,15 +71,15 @@ function CreateTestContent() {
       }) as { questions: Array<unknown> };
 
       // 保存题目到测试会话
-      await fetch(`${API_BASE}/api/test-sessions/${session_id}/questions`, {
+      await callPythonAPI(`/api/test-sessions/${session_id}/questions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questions: result.questions }),
       });
 
+      toast.success('题目生成成功');
       router.push(`/test/${session_id}`);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "生成失败");
+      toast.error(error instanceof Error ? error.message : "生成失败");
     } finally {
       setLoading(false);
     }

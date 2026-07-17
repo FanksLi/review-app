@@ -1,36 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
+import { BookOpen, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Search, Filter, Trash2, ArrowUp } from "lucide-react";
 import Link from "next/link";
-
-// TODO: 后端API GET /api/stats/wrong-questions 尚未实现
-const API_BASE = '';
+import { callPythonAPI } from "@/lib/api/client";
+import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm";
 
 interface WrongQuestion {
   question_id: string;
   question_type: string;
   question_text: string;
+  options?: string[];
+  user_answer: string;
   correct_answer: string;
+  source_reference?: string;
   wrong_count: number;
 }
 
 export default function WrongBookPage() {
   const [questions, setQuestions] = useState<WrongQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "single_choice" | "multi_choice" | "true_false" | "short_answer">("all");
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const pageSize = 10;
+  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchWrongQuestions = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/stats/wrong-questions?t=${Date.now()}`);
-        if (response.ok) {
-          const data = await response.json();
-          setQuestions(data.questions || []);
-        }
+        const data = await callPythonAPI<{questions: WrongQuestion[]}>(`/api/stats/wrong-questions?t=${Date.now()}`);
+        setQuestions(data.questions || []);
       } catch (error) {
         console.error('加载错题失败:', error);
         setQuestions([]);
@@ -39,6 +42,14 @@ export default function WrongBookPage() {
       }
     };
     fetchWrongQuestions();
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 200);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   if (loading) {
@@ -75,6 +86,34 @@ export default function WrongBookPage() {
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     setCurrentPage(1);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (questionId: string) => {
+    const confirmed = await confirm({
+      title: '移除错题',
+      content: '确定从错题本移除这道题？',
+      danger: true,
+      confirmText: '移除',
+      cancelText: '取消'
+    });
+
+    if (!confirmed) return;
+
+    const [sessionId, qId] = questionId.split('-');
+    setDeleting(questionId);
+    try {
+      await callPythonAPI(`/api/stats/wrong-questions/${sessionId}/${qId}`, { method: 'DELETE' });
+      setQuestions(questions.filter(q => q.question_id !== questionId));
+      toast.success('已移除');
+    } catch (error) {
+      toast.error('移除失败');
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -161,10 +200,57 @@ export default function WrongBookPage() {
                           <p className="font-medium text-gray-900 mb-3">
                             {startIndex + i + 1}. {q.question_text}
                           </p>
+                          {q.options && q.options.length > 0 && (
+                            <div className="mb-3 pl-4 space-y-1">
+                              {q.options.map((opt, idx) => {
+                                const optionLetter = opt[0];
+                                const isUserChoice = q.user_answer.includes(optionLetter);
+                                const isCorrectChoice = q.correct_answer.includes(optionLetter);
+
+                                let bgColor = '';
+                                if (isCorrectChoice && isUserChoice) {
+                                  bgColor = 'bg-green-100 border-green-300';
+                                } else if (isCorrectChoice) {
+                                  bgColor = 'bg-green-50 border-green-200';
+                                } else if (isUserChoice) {
+                                  bgColor = 'bg-red-50 border-red-200';
+                                }
+
+                                return (
+                                  <div key={idx} className={`text-sm px-3 py-2 rounded border ${bgColor || 'bg-gray-50 border-gray-200'}`}>
+                                    <span className="font-medium">{opt}</span>
+                                    {isCorrectChoice && !isUserChoice && <span className="ml-2 text-green-600 text-xs">(正确答案)</span>}
+                                    {isUserChoice && !isCorrectChoice && <span className="ml-2 text-red-600 text-xs">(你的选择)</span>}
+                                    {isCorrectChoice && isUserChoice && <span className="ml-2 text-green-600 text-xs">✓</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                           <div className="text-sm text-gray-600">
+                            你的答案: <span className="text-red-600 font-medium">{q.user_answer}</span>
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
                             正确答案: <span className="text-green-600 font-medium">{q.correct_answer}</span>
                           </div>
+                          {q.source_reference && (
+                            <div className="text-xs text-gray-400 mt-2">
+                              来源: {q.source_reference}
+                            </div>
+                          )}
                         </div>
+                        <button
+                          onClick={() => handleDelete(q.question_id)}
+                          disabled={deleting === q.question_id}
+                          className="ml-4 px-3 py-2 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          {deleting === q.question_id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          移除
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -222,14 +308,15 @@ export default function WrongBookPage() {
           </>
         )}
 
-        <div className="mt-8">
-          <Link
-            href="/"
-            className="block w-full py-3 border border-gray-300 rounded-lg text-center hover:bg-gray-50"
+        {showScrollTop && (
+          <button
+            onClick={scrollToTop}
+            className="fixed bottom-8 right-8 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+            aria-label="回到顶部"
           >
-            返回首页
-          </Link>
-        </div>
+            <ArrowUp className="w-5 h-5" />
+          </button>
+        )}
       </div>
     </main>
   );

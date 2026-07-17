@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Settings as SettingsIcon, Save, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
@@ -12,7 +13,7 @@ export default function SettingsPage() {
     setSaving(true);
     // 实际保存逻辑需要连接到环境变量配置
     await new Promise(resolve => setTimeout(resolve, 1000));
-    alert("配置已保存，请重启后端服务生效");
+    toast.success("配置已保存，请重启后端服务生效");
     setSaving(false);
   };
 

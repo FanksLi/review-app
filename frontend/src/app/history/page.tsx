@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, Loader2, Calendar, Trash2, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
+import { FileText, Loader2, Calendar, Trash2, ChevronLeft, ChevronRight, Search, Filter, ArrowUp } from "lucide-react";
 import Link from "next/link";
-
-const API_BASE = '';
+import { callPythonAPI } from "@/lib/api/client";
+import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm";
 
 interface TestSession {
   id: number;
@@ -22,16 +23,15 @@ export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "incomplete">("all");
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const pageSize = 10;
+  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/test-sessions/`);
-        if (response.ok) {
-          const data = await response.json();
-          setSessions(data.sessions || []);
-        }
+        const data = await callPythonAPI<{sessions: TestSession[]}>('/api/test-sessions/');
+        setSessions(data.sessions || []);
       } catch (error) {
         console.error('加载历史记录失败:', error);
         setSessions([]);
@@ -42,24 +42,32 @@ export default function HistoryPage() {
     fetchSessions();
   }, []);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 200);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleDelete = async (sessionId: number) => {
-    if (!confirm(`确定要删除测试 #${sessionId} 吗？\n\n此操作不可恢复。`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: '删除测试',
+      content: `确定要删除测试 #${sessionId} 吗？此操作不可恢复。`,
+      danger: true,
+      confirmText: '删除',
+      cancelText: '取消'
+    });
+
+    if (!confirmed) return;
 
     setDeleting(sessionId);
     try {
-      const response = await fetch(`${API_BASE}/api/test-sessions/${sessionId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setSessions(sessions.filter(s => s.id !== sessionId));
-      } else {
-        alert('删除失败');
-      }
+      await callPythonAPI(`/api/test-sessions/${sessionId}`, { method: 'DELETE' });
+      setSessions(sessions.filter(s => s.id !== sessionId));
+      toast.success('已删除');
     } catch (error) {
-      alert('删除失败');
+      toast.error('删除失败');
     } finally {
       setDeleting(null);
     }
@@ -101,6 +109,10 @@ export default function HistoryPage() {
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     setCurrentPage(1);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -284,6 +296,16 @@ export default function HistoryPage() {
           </>
         )}
       </div>
+
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+          aria-label="回到顶部"
+        >
+          <ArrowUp className="w-5 h-5" />
+        </button>
+      )}
     </main>
   );
 }

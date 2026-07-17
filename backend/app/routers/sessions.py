@@ -419,6 +419,7 @@ async def get_session_result(session_id: int):
             "question_id": row["question_id"],
             "question_type": row["question_type"],
             "question_text": row["question_text"],
+            "options": options,
             "user_answer": row["user_answer"],
             "correct_answer": correct_answer,
             "is_correct": is_correct,

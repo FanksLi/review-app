@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-
-// TODO: 后端API需要补充:
-// - GET /api/test-sessions/:id/result 获取测试结果
-const API_BASE = '';
+import { callPythonAPI } from "@/lib/api/client";
 
 interface TestResult {
   total_score: number;
@@ -16,6 +13,7 @@ interface TestResult {
     question_id: string;
     question_type: string;
     question_text: string;
+    options?: string[];
     user_answer: string;
     correct_answer: string;
     is_correct: boolean | null;
@@ -35,13 +33,8 @@ export default function ResultPage() {
   useEffect(() => {
     const fetchResult = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/test-sessions/${sessionId}/result`);
-        if (response.ok) {
-          const data = await response.json();
-          setResult(data);
-        } else {
-          setResult(null);
-        }
+        const data = await callPythonAPI<TestResult>(`/api/test-sessions/${sessionId}/result`);
+        setResult(data);
       } catch (error) {
         console.error('加载结果失败:', error);
         setResult(null);
@@ -148,6 +141,33 @@ export default function ResultPage() {
                     {q.question_type === "short_answer" && "简答"}]
                     {q.question_text}
                   </div>
+                  {q.options && q.options.length > 0 && (
+                    <div className="mb-3 pl-4 space-y-1">
+                      {q.options.map((opt, idx) => {
+                        const optionLetter = opt[0];
+                        const isUserChoice = q.user_answer.includes(optionLetter);
+                        const isCorrectChoice = q.correct_answer.includes(optionLetter);
+
+                        let bgColor = '';
+                        if (isCorrectChoice && isUserChoice) {
+                          bgColor = 'bg-green-100 border-green-300';
+                        } else if (isCorrectChoice) {
+                          bgColor = 'bg-green-50 border-green-200';
+                        } else if (isUserChoice) {
+                          bgColor = 'bg-red-50 border-red-200';
+                        }
+
+                        return (
+                          <div key={idx} className={`text-sm px-3 py-2 rounded border ${bgColor || 'bg-gray-50 border-gray-200'}`}>
+                            <span className="font-medium">{opt}</span>
+                            {isCorrectChoice && !isUserChoice && <span className="ml-2 text-green-600 text-xs">(正确答案)</span>}
+                            {isUserChoice && !isCorrectChoice && <span className="ml-2 text-red-600 text-xs">(你的选择)</span>}
+                            {isCorrectChoice && isUserChoice && <span className="ml-2 text-green-600 text-xs">✓</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="text-sm space-y-1">
                     <div className="text-gray-600">
                       你的答案: <span className="text-red-600">{q.user_answer}</span>

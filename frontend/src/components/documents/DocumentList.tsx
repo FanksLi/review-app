@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { FileText, Trash2, Play, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm";
 
 interface Document {
   id: number;
@@ -15,6 +17,7 @@ interface Document {
 export function DocumentList() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadDocuments();
@@ -23,8 +26,8 @@ export function DocumentList() {
   const loadDocuments = async () => {
     try {
       // 从Python后端获取文档列表
-      const response = await fetch('/api/documents/');
-      const data = await response.json();
+      const { callPythonAPI } = await import("@/lib/api/client");
+      const data = await callPythonAPI<{documents: Document[]}>('/api/documents');
       setDocuments(data.documents || []);
     } catch (error) {
       console.error("Load documents error:", error);
@@ -34,14 +37,23 @@ export function DocumentList() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("确定删除这份文档？")) return;
+    const confirmed = await confirm({
+      title: '删除文档',
+      content: '确定删除这份文档？相关测试记录将保留。',
+      danger: true,
+      confirmText: '删除',
+      cancelText: '取消'
+    });
+
+    if (!confirmed) return;
 
     try {
       const { deleteDocument } = await import("@/lib/api/client");
       await deleteDocument(id);
       setDocuments(docs => docs.filter(d => d.id !== id));
+      toast.success('已删除');
     } catch (error) {
-      alert(error instanceof Error ? error.message : "删除失败");
+      toast.error(error instanceof Error ? error.message : "删除失败");
     }
   };
 

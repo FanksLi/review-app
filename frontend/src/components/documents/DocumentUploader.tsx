@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import { uploadDocument } from "@/lib/api/client";
+import { toast } from "sonner";
 
 export function DocumentUploader() {
   const [isUploading, setIsUploading] = useState(false);
@@ -16,12 +17,12 @@ export function DocumentUploader() {
     const allowedTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
 
     if (!allowedTypes.includes(file.type)) {
-      alert("仅支持 PDF、Word、文本文件");
+      toast.error("仅支持 PDF、Word、文本文件");
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      alert("文件大小不能超过 20MB");
+      toast.error("文件大小不能超过 20MB");
       return;
     }
 
@@ -29,11 +30,11 @@ export function DocumentUploader() {
     try {
       const result = await uploadDocument(file);
       console.log("Upload result:", result);
-      alert("上传成功！");
+      toast.success("上传成功！");
       window.location.reload();
     } catch (error) {
       console.error("Upload error:", error);
-      alert(error instanceof Error ? error.message : "上传失败");
+      toast.error(error instanceof Error ? error.message : "上传失败");
     } finally {
       setIsUploading(false);
     }
