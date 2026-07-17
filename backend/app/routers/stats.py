@@ -50,6 +50,29 @@ async def get_overview():
     }
 
 
+@router.get("/error-trend")
+async def get_error_trend(days: int = 7):
+    """获取错误趋势"""
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT DATE(s.completed_at) as date,
+               COUNT(*) as error_count
+        FROM test_answers a
+        JOIN test_sessions s ON a.session_id = s.id
+        WHERE s.completed_at IS NOT NULL
+          AND (a.is_correct = 0 OR a.score < a.max_score)
+          AND DATE(s.completed_at) >= DATE('now', ?)
+        GROUP BY DATE(s.completed_at)
+        ORDER BY date DESC
+    """, (f'-{days} days',)).fetchall()
+
+    conn.close()
+
+    trend = [{"date": row["date"], "error_count": row["error_count"]} for row in rows]
+    return trend
+
+
 @router.get("/wrong-questions")
 async def get_wrong_questions():
     """获取错题列表"""
@@ -61,12 +84,14 @@ async def get_wrong_questions():
             question_id,
             question_type,
             question_text,
+            question_options,
             correct_answer,
             user_answer,
             is_correct,
             score,
             max_score,
-            session_id
+            session_id,
+            source_reference
         FROM test_answers
         WHERE user_answer IS NOT NULL AND user_answer != ''
         ORDER BY session_id DESC, question_id
@@ -110,14 +135,61 @@ async def get_wrong_questions():
         elif user_answer and correct_answer and user_answer != correct_answer:
             is_wrong = True
 
+        # 解析选项
+        options = []
+        if row["question_options"]:
+            try:
+                options = json.loads(row["question_options"])
+            except:
+                pass
+
+        # 构建完整答案显示（选项+内容）
+        if options and correct_answer:
+            for opt in options:
+                if opt.startswith(correct_answer + ".") or opt.startswith(correct_answer + " "):
+                    correct_answer = opt
+                    break
+                # 多选题情况
+                if ", " in correct_answer:
+                    answer_parts = correct_answer.split(", ")
+                    full_parts = []
+                    for part in answer_parts:
+                        for opt in options:
+                            if opt.startswith(part + ".") or opt.startswith(part + " "):
+                                full_parts.append(opt)
+                                break
+                    if full_parts:
+                        correct_answer = "; ".join(full_parts)
+                        break
+
         if is_wrong:
             seen.add(unique_key)
             questions.append({
                 "question_id": unique_key,  # 使用唯一标识
                 "question_type": row["question_type"],
                 "question_text": row["question_text"],
+                "options": options,
+                "user_answer": user_answer,
                 "correct_answer": correct_answer,
+                "source_reference": row["source_reference"] or "",
                 "wrong_count": 1
             })
 
     return {"questions": questions}
+
+
+@router.delete("/wrong-questions/{session_id}/{question_id}")
+async def delete_wrong_question(session_id: int, question_id: str):
+    """从错题本移除题目"""
+    conn = get_db()
+
+    # 删除指定题目的作答记录
+    conn.execute("""
+        DELETE FROM test_answers
+        WHERE session_id = ? AND question_id = ?
+    """, (session_id, question_id))
+
+    conn.commit()
+    conn.close()
+
+    return {"success": True}
