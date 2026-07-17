@@ -37,6 +37,17 @@ function CreateTestContent() {
       }
     };
     fetchDocuments();
+
+    // 回显上次题型配置
+    const savedTypes = localStorage.getItem('review_app_question_types_config');
+    if (savedTypes) {
+      try {
+        const parsed = JSON.parse(savedTypes);
+        setQuestionTypes(parsed);
+      } catch (e) {
+        console.error('解析保存的题型配置失败:', e);
+      }
+    }
   }, [searchParams]);
 
   const handleGenerate = async () => {
@@ -49,6 +60,9 @@ function CreateTestContent() {
       toast.warning("请设置题目数量");
       return;
     }
+
+    // 保存题型配置到 localStorage
+    localStorage.setItem('review_app_question_types_config', JSON.stringify(questionTypes));
 
     setLoading(true);
     try {
