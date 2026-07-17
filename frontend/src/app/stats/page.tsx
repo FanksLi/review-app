@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { BarChart3, TrendingUp, Loader2 } from "lucide-react";
-
-// TODO: 后端API GET /api/stats/overview 尚未实现
-const API_BASE = '';
+import { callPythonAPI } from "@/lib/api/client";
+import ErrorTrendChart from "@/components/stats/ErrorTrendChart";
+import ErrorTypesChart from "@/components/stats/ErrorTypesChart";
 
 interface Stats {
   totalTests: number;
@@ -25,16 +25,18 @@ export default function StatsPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/stats/overview`);
-        if (response.ok) {
-          const data = await response.json();
-          setStats({
-            totalTests: data.totalTests || 0,
-            avgScore: data.avgScore || 0,
-            totalDocuments: data.totalDocuments || 0,
-            recentTrend: data.recentTrend || [],
-          });
-        }
+        const data = await callPythonAPI<{
+          totalTests: number;
+          avgScore: number;
+          totalDocuments: number;
+          recentTrend: number[];
+        }>('/api/stats/overview');
+        setStats({
+          totalTests: data.totalTests || 0,
+          avgScore: data.avgScore || 0,
+          totalDocuments: data.totalDocuments || 0,
+          recentTrend: data.recentTrend || [],
+        });
       } catch (error) {
         console.error('加载统计失败:', error);
       } finally {
@@ -110,6 +112,18 @@ export default function StatsPage() {
             </div>
             <div className="mt-2 text-sm text-gray-500 text-center">
               最近 {stats.recentTrend.length} 次测试
+            </div>
+          </div>
+        )}
+
+        {/* 错误统计 */}
+        {stats.totalTests > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <ErrorTrendChart />
+            </div>
+            <div className="lg:col-span-1">
+              <ErrorTypesChart />
             </div>
           </div>
         )}
