@@ -56,7 +56,7 @@ export default function ErrorTypesChart() {
             <XAxis type="number" />
             <YAxis dataKey="label" type="category" width={80} />
             <Tooltip
-              formatter={(value: number, name: string) => {
+              formatter={(value, name) => {
                 if (name === 'count') return [value, '错误数'];
                 return [value, name];
               }}
