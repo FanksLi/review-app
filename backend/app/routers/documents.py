@@ -69,16 +69,23 @@ async def upload_document(file: UploadFile = File(...)):
         rag_service = RAGService()
 
         # 保存文件
+        print(f"[UPLOAD] Saving file: {file.filename}, size: {len(content)}")
         file_path = processor.save_upload(content, file.filename)
+        print(f"[UPLOAD] Saved to: {file_path}")
 
         # 计算hash
         file_hash = processor.get_file_hash(file_path)
+        print(f"[UPLOAD] Hash: {file_hash}")
 
         # 解析文件
+        print(f"[UPLOAD] Parsing file...")
         text, file_type = processor.parse_file(file_path)
+        print(f"[UPLOAD] Parsed, type={file_type}, text_len={len(text)}")
 
         # 文本分段
+        print(f"[UPLOAD] Splitting text...")
         chunks = processor.split_text(text, file.filename)
+        print(f"[UPLOAD] Split into {len(chunks)} chunks")
 
         # 存入数据库获取真实ID
         conn = get_db()
@@ -105,9 +112,12 @@ async def upload_document(file: UploadFile = File(...)):
 
         conn.commit()
         conn.close()
+        print(f"[UPLOAD] DB record id={document_id}")
 
         # 向量化存储
+        print(f"[UPLOAD] Adding to vector store...")
         rag_service.add_documents(chunks, document_id)
+        print(f"[UPLOAD] Vector store done")
 
         # 生成预览
         preview = text[:200] + "..." if len(text) > 200 else text
@@ -120,9 +130,10 @@ async def upload_document(file: UploadFile = File(...)):
             preview=preview
         )
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import traceback
+        print(f"[UPLOAD ERROR] {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
 
 
