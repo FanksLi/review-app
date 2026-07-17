@@ -73,6 +73,32 @@ async def get_error_trend(days: int = 7):
     return trend
 
 
+@router.get("/error-types")
+async def get_error_types():
+    """获取错误类型分布"""
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT question_type, COUNT(*) as count
+        FROM test_answers
+        WHERE is_correct = 0 OR score < max_score
+        GROUP BY question_type
+    """).fetchall()
+
+    conn.close()
+
+    total = sum(row["count"] for row in rows)
+    types = [
+        {
+            "type": row["question_type"],
+            "count": row["count"],
+            "percentage": round((row["count"] / total * 100), 1) if total > 0 else 0
+        }
+        for row in rows
+    ]
+    return types
+
+
 @router.get("/wrong-questions")
 async def get_wrong_questions():
     """获取错题列表"""
