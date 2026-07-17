@@ -253,6 +253,11 @@ class RAGService:
             题目列表
         """
         import random
+        import hashlib
+        import sqlite3
+
+        # 获取已有题目用于去重
+        existing_questions = self._get_existing_questions(document_ids)
 
         # 检索文档片段 - 随机采样
         chunks = []
@@ -272,15 +277,40 @@ class RAGService:
         if not chunks:
             return []
 
-        # 随机采样片段，增加多样性
-        if len(chunks) > 20:
-            chunks = random.sample(chunks, 20)
+        # 按页码分组，确保覆盖不同章节
+        page_groups = {}
+        for chunk in chunks:
+            page = chunk['metadata'].get('page', 'unknown')
+            source = chunk['metadata'].get('source', 'unknown')
+            key = f"{source}-{page}"
+            if key not in page_groups:
+                page_groups[key] = []
+            page_groups[key].append(chunk)
+
+        # 从每个页码组中均匀采样
+        sampled_chunks = []
+        group_keys = list(page_groups.keys())
+        random.shuffle(group_keys)
+
+        max_chunks = 25
+        for key in group_keys:
+            if len(sampled_chunks) >= max_chunks:
+                break
+            # 每组最多取2个片段
+            group_chunks = page_groups[key][:2]
+            sampled_chunks.extend(group_chunks)
+
+        # 如果采样不足，补充随机片段
+        if len(sampled_chunks) < max_chunks:
+            remaining = [c for c in chunks if c not in sampled_chunks]
+            random.shuffle(remaining)
+            sampled_chunks.extend(remaining[:max_chunks - len(sampled_chunks)])
 
         # 构建材料文本
         materials = "\n\n---\n\n".join([
             f"[来源: {chunk['metadata'].get('source', '未知')}, "
             f"第{chunk['metadata'].get('page', '?')}页]\n{chunk['text']}"
-            for chunk in chunks
+            for chunk in sampled_chunks
         ])
 
         # 构建题目要求
@@ -296,6 +326,15 @@ class RAGService:
             if count > 0:
                 requirements.append(f"{type_names.get(q_type, q_type)}: {count}道")
 
+        # 构建已有题目文本（用于去重提示）
+        existing_hint = ""
+        if existing_questions:
+            existing_texts = [q[:80] for q in existing_questions[:30]]
+            existing_hint = f"""
+
+特别注意 - 以下题目已经出过，请勿重复或出相似题目：
+{chr(10).join(f'- {t}' for t in existing_texts)}"""
+
         # 构建Prompt
         system_prompt = """你是专业的考试出题专家。根据提供的复习材料生成测试题目。
 
@@ -307,6 +346,7 @@ class RAGService:
 5. 简答题参考答案要全面准确
 6. 题目要有创新性，避免使用常见的模板化问法
 7. 从不同角度考查知识点，增加题目多样性
+8. 严禁与已有题目重复或高度相似，必须从不同知识点、不同角度出题
 
 题目类型必须严格使用：single_choice, multi_choice, true_false, short_answer
 
@@ -326,15 +366,33 @@ class RAGService:
   ]
 }"""
 
-        # 添加随机提示词，增加多样性
+        # 扩展随机提示词池
         random_hints = [
             "请从不同知识点出发设计题目",
             "题目设计要有创新性，避免模板化",
             "注重考查理解和应用能力",
             "题目要有一定的深度和难度",
-            "从实际应用场景出发设计题目"
+            "从实际应用场景出发设计题目",
+            "重点考查容易混淆的知识点",
+            "从反向思维角度出题（如：哪个说法是错误的）",
+            "结合多个知识点设计综合性题目",
+            "从边界条件和特殊情况出发设计题目",
+            "注重考查原理理解而非死记硬背",
+            "从对比分析的角度设计题目",
+            "设计需要推理才能得出答案的题目",
+            "从常见误区和易错点出发设计题目",
+            "注重考查知识点之间的关联和区别",
+            "从实际项目中的典型问题出发设计题目",
         ]
-        hint = random.choice(random_hints)
+
+        # 随机选择2-3个提示词
+        selected_hints = random.sample(random_hints, min(3, len(random_hints)))
+        # 随机考查角度
+        angles = ["记忆", "理解", "应用", "分析", "评价", "创造"]
+        selected_angle = random.choice(angles)
+        # 随机难度
+        difficulties = ["基础", "中等", "较难"]
+        selected_difficulty = random.choice(difficulties)
 
         user_prompt = f"""复习材料：
 {materials}
@@ -342,7 +400,10 @@ class RAGService:
 请生成以下题目：
 {chr(10).join(requirements)}
 
-注意：{hint}"""
+出题要求：
+- 考查角度：{selected_angle}层次
+- 难度级别：{selected_difficulty}
+- {'; '.join(selected_hints)}{existing_hint}"""
 
         # 调用LLM
         provider = create_provider(
@@ -353,7 +414,84 @@ class RAGService:
 
         response = provider.generate_json(user_prompt, system_prompt)
 
-        return response.get("questions", [])
+        questions = response.get("questions", [])
+
+        # 去重：过滤与已有题目高度相似的
+        if existing_questions:
+            questions = self._deduplicate_questions(questions, existing_questions)
+
+        # 记录新题目hash
+        self._save_question_hashes(questions, document_ids)
+
+        return questions
+
+    def _get_existing_questions(self, document_ids: List[int]) -> List[str]:
+        """获取已有题目文本用于去重"""
+        db_path = Path(self.settings.CHROMA_PERSIST_DIR).parent / "review.db"
+        if not db_path.exists():
+            return []
+
+        try:
+            conn = sqlite3.connect(str(db_path), timeout=30.0)
+            rows = conn.execute("""
+                SELECT question_text FROM test_answers
+                WHERE session_id IN (
+                    SELECT id FROM test_sessions
+                    WHERE document_ids IN ({})
+                )
+            """.format(",".join(["?"] * len(document_ids)).document_ids),
+            [json.dumps(document_ids)] * len(document_ids)).fetchall()
+            conn.close()
+            return [row[0] for row in rows]
+        except:
+            return []
+
+    def _deduplicate_questions(
+        self,
+        questions: List[Dict[str, Any]],
+        existing_questions: List[str]
+    ) -> List[Dict[str, Any]]:
+        """去重：过滤与已有题目高度相似的"""
+        result = []
+        for q in questions:
+            q_text = q.get("question", "")
+            # 简单相似度检查：如果题目前20个字符完全相同，认为重复
+            q_prefix = q_text[:20].strip()
+            is_dup = any(
+                eq[:20].strip() == q_prefix
+                for eq in existing_questions
+            )
+            if not is_dup:
+                result.append(q)
+        return result
+
+    def _save_question_hashes(
+        self,
+        questions: List[Dict[str, Any]],
+        document_ids: List[int]
+    ):
+        """保存题目hash用于去重"""
+        db_path = Path(self.settings.CHROMA_PERSIST_DIR).parent / "review.db"
+        if not db_path.exists():
+            return
+
+        try:
+            import hashlib
+            conn = sqlite3.connect(str(db_path), timeout=30.0)
+            for q in questions:
+                q_text = q.get("question", "")
+                q_hash = hashlib.md5(q_text.encode()).hexdigest()
+                try:
+                    conn.execute("""
+                        INSERT OR IGNORE INTO question_hashes (question_hash, question_text, document_ids)
+                        VALUES (?, ?, ?)
+                    """, (q_hash, q_text, json.dumps(document_ids)))
+                except:
+                    pass
+            conn.commit()
+            conn.close()
+        except:
+            pass
 
     def grade_answer(
         self,

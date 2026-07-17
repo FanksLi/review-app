@@ -190,7 +190,14 @@ export default function HistoryPage() {
                                 {totalQuestions} 道题目 · {docIds.length} 份文档
                               </p>
                               <p className="text-xs text-gray-400 mt-1">
-                                {new Date(session.created_at).toLocaleString("zh-CN")}
+                                {new Date(session.created_at).toLocaleString("zh-CN", {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false
+                                }).replace(/\//g, '-')}
                               </p>
                             </div>
                           </div>

@@ -51,6 +51,15 @@ def init_db():
             FOREIGN KEY (session_id) REFERENCES test_sessions(id)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS question_hashes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question_hash TEXT NOT NULL UNIQUE,
+            question_text TEXT NOT NULL,
+            document_ids TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
 
