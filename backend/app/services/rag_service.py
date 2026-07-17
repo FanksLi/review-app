@@ -55,9 +55,23 @@ class RAGService:
                 self._index = faiss.read_index(str(self._index_path))
                 with open(self._docs_path, "rb") as f:
                     self._documents = pickle.load(f)
+
+                # 检查索引维度是否匹配当前 embedding 模型
+                sample_embedding = self.embed_texts(["test"])
+                actual_dim = len(sample_embedding[0])
+                if self._index.d != actual_dim:
+                    print(f"[WARN] Index dimension mismatch: index={self._index.d}, model={actual_dim}. Rebuilding...")
+                    self._index = faiss.IndexFlatIP(actual_dim)
+                    self._documents = []
+                    # 删除旧索引文件
+                    self._index_path.unlink(missing_ok=True)
+                    self._docs_path.unlink(missing_ok=True)
             else:
-                # 创建空索引 (1024维，千问text-embedding-v4)
-                self._index = faiss.IndexFlatIP(1024)
+                # 根据实际 embedding 维度创建索引
+                sample_embedding = self.embed_texts(["test"])
+                dimension = len(sample_embedding[0])
+                print(f"[INFO] Creating new FAISS index with dimension {dimension}")
+                self._index = faiss.IndexFlatIP(dimension)
                 self._documents = []
 
     def _save_index(self):
